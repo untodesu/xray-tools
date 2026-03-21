@@ -16,7 +16,7 @@ ip rule add fwmark ${MARK} table ${TABLE} 2>/dev/null || true
 ip route add local 0.0.0.0/0 dev lo table ${TABLE} 2>/dev/null || true
 
 # nftables
-nft -f - <<'EOF'
+nft -f - <<EOF
 table ip xray {
   chain prerouting {
     type filter hook prerouting priority mangle; policy accept;
