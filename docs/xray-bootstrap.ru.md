@@ -1,9 +1,3 @@
-# [EN](README.md)  
-
-# xray-tools
-
-Мои личные инструменты для обслуживания xray-core  
-
 # Начальная настройка сервера: _xray-bootstrap.py_
 
 ## Возможности
@@ -37,7 +31,7 @@ python3 <(curl https://raw.githubusercontent.com/untodesu/xray-tools/refs/heads/
 
 Далее откроется текстовый интерфейс (TUI) на базе curses, который проведёт вас через настройку входящих подключений VLESS (на момент написания других пресетов нет)  
 
-![Один из экранов начальной настройки скрипта](media/xray-bootstrap.png)
+![Один из экранов начальной настройки скрипта](/media/xray-bootstrap.png)
 
 ### 4. ?????
 
