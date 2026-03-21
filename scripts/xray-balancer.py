@@ -155,7 +155,15 @@ def update_config(config: dict, outbounds: list[dict]) -> dict:
     config["routing"]["balancers"] = [{
         "tag": "proxy-balancer",
         "selector": proxy_tags,
-        "strategy": {"type": "leastPing"},
+        "strategy": {
+            "type": "leastLoad",
+            "settings": {
+                "baselines": ["400ms"],
+                "expected": 1,
+                "maxRTT": "2000ms",
+                "tolerance": 0.5
+            }
+        },
     }]
 
     # Observatory
