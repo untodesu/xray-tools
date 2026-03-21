@@ -33,3 +33,11 @@ I run a homelab server and there is need for some stuff passed through WireGuard
 1. Copy somewhere  
 2. Edit to fit your needs  
 3. Put calls into PostUp and PostDown  
+
+## Direct links
+```
+https://raw.githubusercontent.com/untodesu/xray-tools/refs/heads/main/scripts/xray-tproxy-setup.sh
+```
+```
+https://raw.githubusercontent.com/untodesu/xray-tools/refs/heads/main/scripts/xray-tproxy-teardown.sh
+```

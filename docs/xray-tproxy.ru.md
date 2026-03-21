@@ -28,7 +28,15 @@
 ]
 ```
 
-## Installation
+## Установка
 1. Качаем и/или копируем куда-нибудь  
 2. Редактируем так, чтобы соответствало конфигу WireGuard'а  
 3. Вписываем вызовы скриптов в PostUp и PostDown  
+
+### Прямые ссылки
+```
+https://raw.githubusercontent.com/untodesu/xray-tools/refs/heads/main/scripts/xray-tproxy-setup.sh
+```
+```
+https://raw.githubusercontent.com/untodesu/xray-tools/refs/heads/main/scripts/xray-tproxy-teardown.sh
+```
