@@ -1,3 +1,5 @@
+# [EN](README.md)  
+
 # xray-tools
 
 Мои личные инструменты для обслуживания xray-core  

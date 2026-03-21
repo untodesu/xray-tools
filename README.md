@@ -1,3 +1,5 @@
+# [RU](README.ru.md)  
+
 # xray-tools
 
 My personal tools for maintaining xray-core
