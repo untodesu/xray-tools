@@ -28,7 +28,7 @@ bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release
 ### 2. Запуск скрипта
 
 ```bash
-python3 <(curl https://codeberg.org/untodesu/xrtools/raw/branch/main/scripts/xray-bootstrap.py)
+python3 <(curl https://raw.githubusercontent.com/untodesu/xray-tools/refs/heads/main/scripts/xray-bootstrap.py)
 ```
 
 ### 3. Навигация через curses-интерфейс
