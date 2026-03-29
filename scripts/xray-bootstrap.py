@@ -174,7 +174,28 @@ def xrb_make_vless_url(xray_inbound, xray_client, client_index):
     sni = xray_inbound["streamSettings"]["realitySettings"]["serverNames"][0]
     private_key = xray_inbound["streamSettings"]["realitySettings"]["privateKey"]
 
-    public_key = re.search(r"Password:\s*(.+)", subprocess.check_output(["xray", "x25519", "-i", private_key], text=True)).group(1).rstrip().strip()
+    # Xray developers think it's a GOOD and FUNNY idea to change the way
+    # stuff is outputted per major release. So say, for version 26.2.6 it's
+    # just "Password: <key>" but for 26.3.27 it's "Password (PublicKey): <key>"
+    # ⠉⠉⠉⣿⡿⠿⠛⠋⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⣻⣩⣉⠉⠉
+    # ⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⢀⣀⣀⣀⣀⣀⣀⡀⠄⠄⠉⠉⠄⠄⠄
+    # ⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⣠⣶⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣤⠄⠄⠄⠄
+    # ⠄⠄⠄⠄⠄⠄⠄⠄⠄⢤⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡀⠄⠄⠄
+    # ⡄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠉⠄⠉⠉⠉⣋⠉⠉⠉⠉⠉⠉⠉⠉⠙⠛⢷⡀⠄⠄
+    # ⣿⡄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠠⣾⣿⣷⣄⣀⣀⣀⣠⣄⣢⣤⣤⣾⣿⡀⠄
+    # ⣿⠃⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⣹⣿⣿⡿⠿⣿⣿⣿⣿⣿⣿⣿⣿⢟⢁⣠
+    # ⣿⣿⣄⣀⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠉⠉⣉⣉⣰⣿⣿⣿⣿⣷⣥⡀⠉⢁⡥⠈
+    # ⣿⣿⣿⢹⣇⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠒⠛⠛⠋⠉⠉⠛⢻⣿⣿⣷⢀⡭⣤⠄
+    # ⣿⣿⣿⡼⣿⠷⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⢀⣀⣠⣿⣟⢷⢾⣊⠄⠄
+    # ⠉⠉⠁⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠈⣈⣉⣭⣽⡿⠟⢉⢴⣿⡇⣺⣿⣷
+    # ⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠁⠐⢊⣡⣴⣾⣥⣿⣿⣿
+
+    xray_x25519_raw = subprocess.check_output(["xray", "x25519", "-i", private_key], text=True).rstrip().strip()
+    xray_x25519_lines = xray_x25519_raw.split("\n")
+    xray_x25519_password_line = next(line for line in xray_x25519_lines if "Password" in line or "PublicKey" in line)
+    assert xray_x25519_password_line, "Failed to get public key from xray x25519 output"
+    public_key = xray_x25519_password_line.split(":", 1)[1].strip()
+
     short_id = xray_inbound["streamSettings"]["realitySettings"]["shortIds"][client_index]
     client_flow = xray_client.get("flow", "xtls-rprx-vision")
     client_uuid = xray_client["id"]
