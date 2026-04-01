@@ -22,11 +22,15 @@ REQUIRED_BINARIES = [
 MIN_XRAY_VERSION = "25.12.2"
 
 VLESS_SNI_PREDEFS = [
-    "lineageos.org",
+    "www.microsoft.com",
+    "download.microsoft.com",
+    "packages.microsoft.com",
     "download.lineageos.org",
-    "mirrorbits.lineageos.org",
     "raw.githubusercontent.com",
     "dl.google.com",
+    "update.googleapis.com",
+    "releases.ubuntu.com",
+    "speed.cloudflare.com",
 ]
 
 PORT_PREDEFS = [
@@ -330,6 +334,7 @@ def xrb_make_vless_outbound(xray_inbound, xray_client, client_index):
     xray_x25519_raw = subprocess.check_output(["xray", "x25519", "-i", private_key], text=True).rstrip().strip()
     xray_x25519_lines = xray_x25519_raw.split("\n")
     xray_x25519_password_line = next(line for line in xray_x25519_lines if "Password" in line or "PublicKey" in line)
+    assert xray_x25519_password_line, "Failed to get public key from xray x25519 output"
     public_key = xray_x25519_password_line.split(":", 1)[1].strip()
 
     short_id = xray_inbound["streamSettings"]["realitySettings"]["shortIds"][client_index]
@@ -361,8 +366,67 @@ def xrb_make_vless_outbound(xray_inbound, xray_client, client_index):
     }
     return outbound
 
+def xrb_make_vless_xhttp_outbound(xray_inbound, xray_client, client_index):
+    port = xray_inbound["port"]
+    sni = xray_inbound["streamSettings"]["realitySettings"]["serverNames"][0]
+    private_key = xray_inbound["streamSettings"]["realitySettings"]["privateKey"]
+    xhttp_settings = xray_inbound["streamSettings"].get("xhttpSettings", {})
+
+    # Xray developers think it's a GOOD and FUNNY idea to change the way
+    # stuff is outputted per major release. So say, for version 26.2.6 it's
+    # just "Password: <key>" but for 26.3.27 it's "Password (PublicKey): <key>"
+    # ⠉⠉⠉⣿⡿⠿⠛⠋⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⣻⣩⣉⠉⠉
+    # ⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⢀⣀⣀⣀⣀⣀⣀⡀⠄⠄⠉⠉⠄⠄⠄
+    # ⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⣠⣶⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣤⠄⠄⠄⠄
+    # ⠄⠄⠄⠄⠄⠄⠄⠄⠄⢤⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡀⠄⠄⠄
+    # ⡄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠉⠄⠉⠉⠉⣋⠉⠉⠉⠉⠉⠉⠉⠉⠙⠛⢷⡀⠄⠄
+    # ⣿⡄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠠⣾⣿⣷⣄⣀⣀⣀⣠⣄⣢⣤⣤⣾⣿⡀⠄
+    # ⣿⠃⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⣹⣿⣿⡿⠿⣿⣿⣿⣿⣿⣿⣿⣿⢟⢁⣠
+    # ⣿⣿⣄⣀⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠉⠉⣉⣉⣰⣿⣿⣿⣿⣷⣥⡀⠉⢁⡥⠈
+    # ⣿⣿⣿⢹⣇⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠒⠛⠛⠋⠉⠉⠛⢻⣿⣿⣷⢀⡭⣤⠄
+    # ⣿⣿⣿⡼⣿⠷⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⢀⣀⣠⣿⣟⢷⢾⣊⠄⠄
+    # ⠉⠉⠁⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠈⣈⣉⣭⣽⡿⠟⢉⢴⣿⡇⣺⣿⣷
+    # ⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠁⠐⢊⣡⣴⣾⣥⣿⣿⣿
+
+    xray_x25519_raw = subprocess.check_output(["xray", "x25519", "-i", private_key], text=True).rstrip().strip()
+    xray_x25519_lines = xray_x25519_raw.split("\n")
+    xray_x25519_password_line = next(line for line in xray_x25519_lines if "Password" in line or "PublicKey" in line)
+    assert xray_x25519_password_line, "Failed to get public key from xray x25519 output"
+    public_key = xray_x25519_password_line.split(":", 1)[1].strip()
+
+    short_id = xray_inbound["streamSettings"]["realitySettings"]["shortIds"][client_index]
+
+    outbound = {}
+    outbound["tag"] = xray_client.get("email", f"client{client_index}")
+    outbound["protocol"] = "vless"
+    outbound["settings"] = {
+        "vnext": [{
+            "address": SERVER_ADDRESS,
+            "port": port,
+            "users": [{
+                "id": xray_client["id"],
+                "encryption": "none"
+            }]
+        }]
+    }
+    outbound["streamSettings"] = {
+        "network": "xhttp",
+        "security": "reality",
+        "realitySettings": {
+            "serverName": sni,
+            "fingerprint": "chrome",
+            "publicKey": public_key,
+            "shortId": short_id
+        },
+        "xhttpSettings": xhttp_settings
+    }
+    return outbound
+
 def xrb_make_client_outbound(xray_inbound, xray_client, client_index):
     if xray_inbound["protocol"] == "vless":
+        network = xray_inbound.get("streamSettings", {}).get("network", "raw")
+        if network == "xhttp":
+            return xrb_make_vless_xhttp_outbound(xray_inbound, xray_client, client_index)
         return xrb_make_vless_outbound(xray_inbound, xray_client, client_index)
     return None
 
@@ -650,14 +714,103 @@ def xrb_create_inbound_vless_raw(screen, xray_config):
 
     return xray_config
 
+def xrb_create_inbound_vless_xhttp(screen, xray_config):
+    tag_input = UU_InputMenu(screen, "Enter inbound tag", xrb_make_default_inbound_tag(screen, xray_config, "vless"))
+    tag = tag_input.get()
+
+    port_menu = UU_ChoiceMenu(screen, "Select port")
+
+    for i, port in enumerate(PORT_PREDEFS):
+        port_menu.add_choice(port, is_default=(i == 0))
+    port_menu.add_separator()
+    port_menu.add_choice("Custom")
+    port_menu.add_choice("Random")
+
+    porti = port_menu.get()
+
+    if porti == port_menu.size() - 2: # Custom
+        port_input = UU_InputMenu(screen, "Enter port", str(random.randrange(1024, 5120)))
+        port = int(port_input.get())
+    elif porti == port_menu.size() - 1: # Random
+        port = random.randrange(1024, 5120)
+    else:
+        port = port_menu.choices[porti]
+
+    sni_menu = UU_ChoiceMenu(screen, "Select SNI")
+
+    for i, sni in enumerate(VLESS_SNI_PREDEFS):
+        sni_menu.add_choice(sni, is_default=(i == 0))
+    sni_menu.add_separator()
+    sni_menu.add_choice("Custom")
+
+    snii = sni_menu.get()
+
+    if snii == sni_menu.size() - 1: # Custom
+        sni_input = UU_InputMenu(screen, "Enter SNI")
+        sni = sni_input.get()
+    else:
+        sni = sni_menu.choices[snii]
+
+    path = UU_InputMenu(screen, "Enter xhttp path", "/api/v1/data").get()
+
+    inbound = {}
+
+    # Setup inbound
+    inbound["tag"] = tag
+    inbound["port"] = port
+    inbound["protocol"] = "vless"
+
+    # Setup clients
+    inbound["settings"] = {}
+    inbound["settings"]["clients"] = []
+
+    # Setup VLESS-specific options
+    inbound["settings"]["decryption"] = "none"
+
+    # Setup sniffing
+    inbound["sniffing"] = {}
+    inbound["sniffing"]["enabled"] = True
+    inbound["sniffing"]["destOverride"] = ["http", "tls", "quic"]
+
+    # Setup stream settings
+    inbound["streamSettings"] = {}
+    inbound["streamSettings"]["network"] = "xhttp"
+    inbound["streamSettings"]["security"] = "reality"
+
+    private_key = re.search(r"PrivateKey:\s*(.+)", subprocess.check_output(["xray", "x25519"], text=True)).group(1).rstrip().strip()
+
+    # Setup reality settings
+    inbound["streamSettings"]["realitySettings"] = {}
+    inbound["streamSettings"]["realitySettings"]["show"] = False
+    inbound["streamSettings"]["realitySettings"]["dest"] = f"{sni}:443"
+    inbound["streamSettings"]["realitySettings"]["xver"] = 0
+    inbound["streamSettings"]["realitySettings"]["serverNames"] = [sni]
+    inbound["streamSettings"]["realitySettings"]["privateKey"] = private_key
+    inbound["streamSettings"]["realitySettings"]["shortIds"] = []
+
+    # Setup xhttp settings
+    inbound["streamSettings"]["xhttpSettings"] = {}
+    inbound["streamSettings"]["xhttpSettings"]["path"] = path
+    inbound["streamSettings"]["xhttpSettings"]["mode"] = "auto"
+    inbound["streamSettings"]["xhttpSettings"]["extra"] = {"xPaddingBytes": "100-1000"}
+
+    xray_config["inbounds"].append(inbound)
+
+    return xray_config
+
 def xrb_create_inbound(screen, xray_config):
     protocol_menu = UU_ChoiceMenu(screen, "Select inbound template")
     protocol_menu.add_choice("VLESS-RAW", is_default=True)
+    protocol_menu.add_choice("VLESS-XHTTP")
 
     choice = protocol_menu.get()
 
     if choice == 0: # VLESS-RAW
         xray_config = xrb_create_inbound_vless_raw(screen, xray_config)
+        return xray_config
+
+    if choice == 1: # VLESS-XHTTP
+        xray_config = xrb_create_inbound_vless_xhttp(screen, xray_config)
         return xray_config
 
     return xray_config
