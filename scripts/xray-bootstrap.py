@@ -234,6 +234,7 @@ def xrb_edit_client_flow_vless(screen, xray_client):
 def xrb_edit_client(screen, xray_inbound, xray_client, client_index):
     menu = UU_ChoiceMenu(screen, "Manage client")
     menu.add_choice("Get URL")
+    menu.add_choice("Get outbound JSON")
     menu.add_separator()
     menu.add_choice("Change email")
 
@@ -252,11 +253,19 @@ def xrb_edit_client(screen, xray_inbound, xray_client, client_index):
         msgbox.show()
         return xray_client
 
-    if choice == 2: # Change email
+    if choice == 1: # Get outbound JSON
+        path = UU_InputMenu(screen, "Enter file path", f"{xray_client.get('email', f'client{client_index}')}_outbound.json").get()
+        outbound = xrb_make_client_outbound(xray_inbound, xray_client, client_index)
+        with open(path, "w") as f:
+            f.write(json.dumps(outbound, indent=2, ensure_ascii=False))
+        UU_MessageBox(screen, f"Outbound saved to {path}").show()
+        return xray_client
+
+    if choice == 3: # Change email
         xray_client = xrb_edit_client_email(screen, xray_inbound, xray_client)
         return xray_client
 
-    if xray_inbound["protocol"] == "vless" and choice == 3: # Change flow
+    if xray_inbound["protocol"] == "vless" and choice == 4: # Change flow
         xray_client = xrb_edit_client_flow_vless(screen, xray_client)
         return xray_client
 
@@ -297,6 +306,66 @@ def xrb_create_client(screen, xray_inbound):
 
     return xray_inbound
 
+def xrb_make_vless_outbound(xray_inbound, xray_client, client_index):
+    port = xray_inbound["port"]
+    sni = xray_inbound["streamSettings"]["realitySettings"]["serverNames"][0]
+    private_key = xray_inbound["streamSettings"]["realitySettings"]["privateKey"]
+
+    # Xray developers think it's a GOOD and FUNNY idea to change the way
+    # stuff is outputted per major release. So say, for version 26.2.6 it's
+    # just "Password: <key>" but for 26.3.27 it's "Password (PublicKey): <key>"
+    # ⠉⠉⠉⣿⡿⠿⠛⠋⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⣻⣩⣉⠉⠉
+    # ⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⢀⣀⣀⣀⣀⣀⣀⡀⠄⠄⠉⠉⠄⠄⠄
+    # ⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⣠⣶⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣤⠄⠄⠄⠄
+    # ⠄⠄⠄⠄⠄⠄⠄⠄⠄⢤⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡀⠄⠄⠄
+    # ⡄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠉⠄⠉⠉⠉⣋⠉⠉⠉⠉⠉⠉⠉⠉⠙⠛⢷⡀⠄⠄
+    # ⣿⡄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠠⣾⣿⣷⣄⣀⣀⣀⣠⣄⣢⣤⣤⣾⣿⡀⠄
+    # ⣿⠃⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⣹⣿⣿⡿⠿⣿⣿⣿⣿⣿⣿⣿⣿⢟⢁⣠
+    # ⣿⣿⣄⣀⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠉⠉⣉⣉⣰⣿⣿⣿⣿⣷⣥⡀⠉⢁⡥⠈
+    # ⣿⣿⣿⢹⣇⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠒⠛⠛⠋⠉⠉⠛⢻⣿⣿⣷⢀⡭⣤⠄
+    # ⣿⣿⣿⡼⣿⠷⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⢀⣀⣠⣿⣟⢷⢾⣊⠄⠄
+    # ⠉⠉⠁⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠈⣈⣉⣭⣽⡿⠟⢉⢴⣿⡇⣺⣿⣷
+    # ⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠁⠐⢊⣡⣴⣾⣥⣿⣿⣿
+
+    xray_x25519_raw = subprocess.check_output(["xray", "x25519", "-i", private_key], text=True).rstrip().strip()
+    xray_x25519_lines = xray_x25519_raw.split("\n")
+    xray_x25519_password_line = next(line for line in xray_x25519_lines if "Password" in line or "PublicKey" in line)
+    public_key = xray_x25519_password_line.split(":", 1)[1].strip()
+
+    short_id = xray_inbound["streamSettings"]["realitySettings"]["shortIds"][client_index]
+
+    outbound = {}
+    outbound["tag"] = xray_client.get("email", f"client{client_index}")
+    outbound["protocol"] = "vless"
+    outbound["settings"] = {
+        "vnext": [{
+            "address": SERVER_ADDRESS,
+            "port": port,
+            "users": [{
+                "id": xray_client["id"],
+                "flow": xray_client.get("flow", "xtls-rprx-vision"),
+                "encryption": "none"
+            }]
+        }]
+    }
+    outbound["streamSettings"] = {
+        "network": "raw",
+        "security": "reality",
+        "realitySettings": {
+            "serverName": sni,
+            "fingerprint": "chrome",
+            "publicKey": public_key,
+            "shortId": short_id,
+            "spiderX": "/"
+        }
+    }
+    return outbound
+
+def xrb_make_client_outbound(xray_inbound, xray_client, client_index):
+    if xray_inbound["protocol"] == "vless":
+        return xrb_make_vless_outbound(xray_inbound, xray_client, client_index)
+    return None
+
 def xrb_dump_urls(screen, xray_inbound):
     if 0 == len(xray_inbound["settings"]["clients"]):
         msgbox = UU_MessageBox(screen, "No clients to dump URLs for")
@@ -316,6 +385,47 @@ def xrb_dump_urls(screen, xray_inbound):
     msgbox.show()
 
 
+def xrb_dump_outbounds(screen, xray_inbound):
+    if 0 == len(xray_inbound["settings"]["clients"]):
+        UU_MessageBox(screen, "No clients to dump outbounds for").show()
+        return
+
+    clients = xray_inbound["settings"]["clients"]
+    if len(clients) == 1:
+        default_path = f"{xray_inbound['tag']}_outbound.json"
+    else:
+        default_path = f"{xray_inbound['tag']}_outbounds.json.list"
+
+    path = UU_InputMenu(screen, "Enter file path to dump outbounds", default_path).get()
+
+    with open(path, "w") as out_file:
+        if len(clients) == 1:
+            outbound = xrb_make_client_outbound(xray_inbound, clients[0], 0)
+            out_file.write(json.dumps(outbound, ensure_ascii=False))
+        else:
+            for i, client in enumerate(clients):
+                outbound = xrb_make_client_outbound(xray_inbound, client, i)
+                if outbound:
+                    out_file.write(json.dumps(outbound, ensure_ascii=False) + "\n")
+
+    UU_MessageBox(screen, f"Outbounds dumped to {path}").show()
+
+def xrb_dump_all_outbounds(screen, xray_config):
+    if 0 == len(xray_config["inbounds"]):
+        UU_MessageBox(screen, "No inbounds to dump outbounds for").show()
+        return
+
+    path = UU_InputMenu(screen, "Enter file path to dump all outbounds", "xrboot_outbounds.json.list").get()
+
+    with open(path, "w") as out_file:
+        for xray_inbound in xray_config["inbounds"]:
+            for i, client in enumerate(xray_inbound["settings"]["clients"]):
+                outbound = xrb_make_client_outbound(xray_inbound, client, i)
+                if outbound:
+                    out_file.write(json.dumps(outbound, ensure_ascii=False) + "\n")
+
+    UU_MessageBox(screen, f"All outbounds dumped to {path}").show()
+
 def xrb_manage_clients(screen, xray_inbound):
     while True:
         menu = UU_ChoiceMenu(screen, "Manage clients")
@@ -325,6 +435,7 @@ def xrb_manage_clients(screen, xray_inbound):
 
         menu.add_separator()
         menu.add_choice("Make URL dump")
+        menu.add_choice("Make outbound dump")
         menu.add_separator()
         menu.add_choice("Create New", is_default=(0 == len(xray_inbound["settings"]["clients"])))
         menu.add_separator()
@@ -332,8 +443,12 @@ def xrb_manage_clients(screen, xray_inbound):
 
         choice = menu.get()
 
-        if choice == menu.size() - 5: # Make URL dump
+        if choice == menu.size() - 6: # Make URL dump
             xrb_dump_urls(screen, xray_inbound)
+            continue
+
+        if choice == menu.size() - 5: # Make outbound dump
+            xrb_dump_outbounds(screen, xray_inbound)
             continue
 
         if choice == menu.size() - 3: # Create New
@@ -575,6 +690,7 @@ def xrb_manage_inbounds(screen, xray_config):
 
         menu.add_separator()
         menu.add_choice("Make URL dump")
+        menu.add_choice("Make outbound dump")
         menu.add_separator()
         menu.add_choice("Create New", is_default=(0 == len(xray_config["inbounds"])))
         menu.add_separator()
@@ -582,8 +698,12 @@ def xrb_manage_inbounds(screen, xray_config):
 
         choice = menu.get()
 
-        if choice == menu.size() - 5: # Make URL dump
+        if choice == menu.size() - 6: # Make URL dump
             xrb_dump_all_urls(screen, xray_config)
+            continue
+
+        if choice == menu.size() - 5: # Make outbound dump
+            xrb_dump_all_outbounds(screen, xray_config)
             continue
 
         if choice == menu.size() - 3: # Create New
