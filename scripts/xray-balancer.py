@@ -33,6 +33,15 @@ def sanitize_tag(tag: str) -> str:
     return re.sub(r"[^a-zA-Z0-9@._-]", "_", tag)
 
 
+def unique_tag(tag: str, seen: set) -> str:
+    if tag not in seen:
+        return tag
+    n = 2
+    while f"{tag}_{n}" in seen:
+        n += 1
+    return f"{tag}_{n}"
+
+
 def load_outbound(data: dict, source: str) -> dict | None:
     if not isinstance(data, dict):
         print(f"warning: skipping non-object entry in {source}", file=sys.stderr)
@@ -67,7 +76,8 @@ def load_outbounds_from_dir(directory: Path) -> list[dict]:
             continue
 
         ob = load_outbound(data, str(path))
-        if ob and ob["tag"] not in seen_tags:
+        if ob:
+            ob["tag"] = unique_tag(ob["tag"], seen_tags)
             seen_tags.add(ob["tag"])
             outbounds.append(ob)
 
@@ -83,7 +93,8 @@ def load_outbounds_from_dir(directory: Path) -> list[dict]:
                 continue
 
             ob = load_outbound(data, f"{path}:{lineno}")
-            if ob and ob["tag"] not in seen_tags:
+            if ob:
+                ob["tag"] = unique_tag(ob["tag"], seen_tags)
                 seen_tags.add(ob["tag"])
                 outbounds.append(ob)
 
