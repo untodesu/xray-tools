@@ -798,6 +798,69 @@ def xrb_create_inbound_vless_xhttp(screen, xray_config):
 
     return xray_config
 
+def xrb_auto_setup(screen, xray_config):
+    preset_menu = UU_ChoiceMenu(screen, "Select preset for auto-setup")
+    preset_menu.add_choice("VLESS-RAW", is_default=True)
+    preset_menu.add_choice("VLESS-XHTTP")
+    preset = preset_menu.get()
+
+    xhttp_path = "/api/v1/data"
+    if preset == 1: # VLESS-XHTTP
+        xhttp_path = UU_InputMenu(screen, "Enter xhttp path", "/api/v1/data").get()
+
+    created = 0
+
+    for sni in VLESS_SNI_PREDEFS:
+        for port in [443, random.randrange(1024, 5120)]:
+            sni_slug = sni.replace(".", "_")
+            tag = f"auto_{sni_slug}_{port}"
+
+            private_key = re.search(r"PrivateKey:\s*(.+)", subprocess.check_output(["xray", "x25519"], text=True)).group(1).rstrip().strip()
+            short_id = subprocess.check_output(["openssl", "rand", "-hex", "8"], text=True).rstrip()
+            client_uuid = subprocess.check_output(["xray", "uuid"], text=True).rstrip()
+
+            client = {"id": client_uuid, "email": f"auto@{tag}"}
+            if preset == 0: # VLESS-RAW
+                client["flow"] = "xtls-rprx-vision"
+
+            reality = {
+                "show": False,
+                "dest": f"{sni}:443",
+                "serverNames": [sni],
+                "privateKey": private_key,
+                "shortIds": [short_id],
+            }
+
+            inbound = {}
+            inbound["tag"] = tag
+            inbound["port"] = port
+            inbound["protocol"] = "vless"
+            inbound["settings"] = {"clients": [client], "decryption": "none"}
+            inbound["streamSettings"] = {"security": "reality"}
+
+            if preset == 0: # VLESS-RAW
+                reality["minClientVer"] = ""
+                reality["maxClientVer"] = ""
+                reality["maxTimeDiff"] = 0
+                inbound["sniffing"] = {"enabled": True, "destOverride": ["http", "tls", "quic", "fakedns"]}
+                inbound["streamSettings"]["network"] = "raw"
+            else: # VLESS-XHTTP
+                reality["xver"] = 0
+                inbound["sniffing"] = {"enabled": True, "destOverride": ["http", "tls", "quic"]}
+                inbound["streamSettings"]["network"] = "xhttp"
+                inbound["streamSettings"]["xhttpSettings"] = {
+                    "path": xhttp_path,
+                    "mode": "auto",
+                    "extra": {"xPaddingBytes": "100-1000"},
+                }
+
+            inbound["streamSettings"]["realitySettings"] = reality
+            xray_config["inbounds"].append(inbound)
+            created += 1
+
+    UU_MessageBox(screen, f"Auto-setup complete: {created} inbounds created").show()
+    return xray_config
+
 def xrb_create_inbound(screen, xray_config):
     protocol_menu = UU_ChoiceMenu(screen, "Select inbound template")
     protocol_menu.add_choice("VLESS-RAW", is_default=True)
@@ -993,6 +1056,7 @@ def xrb_main(screen):
     while True:
         menu = UU_ChoiceMenu(screen, f"xrayboot.py v{VERSION} by untodesu")
         menu.add_choice("Manage Inbounds")
+        menu.add_choice("Auto-setup")
         menu.add_separator()
         menu.add_choice("Edit log level")
         menu.add_separator()
@@ -1005,15 +1069,19 @@ def xrb_main(screen):
             xray_config = xrb_manage_inbounds(screen, xray_config)
             continue
 
-        if choice == 2: # Edit log level
+        if choice == 1: # Auto-setup
+            xray_config = xrb_auto_setup(screen, xray_config)
+            continue
+
+        if choice == 3: # Edit log level
             xray_config = xrb_edit_log_level(screen, xray_config)
             continue
 
-        if choice == 4: # Save & Exit
+        if choice == 5: # Save & Exit
             UU_MessageBox(screen, f"The script will save the config to {xray_config_path}").show()
             break
 
-        if choice == 5: # Exit
+        if choice == 6: # Exit
             if UU_YesNoBox(screen, "Are you sure you want to exit without saving?", default_yes=False).get():
                 return 0
             continue
