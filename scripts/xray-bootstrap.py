@@ -224,6 +224,37 @@ class UU_YesNoBox:
         choice_menu.add_choice("No", is_default=not self.default_yes)
         return 0 == choice_menu.get()
 
+class UU_ProgressBar:
+    def __init__(self, screen, title, total):
+        self.screen = screen
+        self.title = title
+        self.total = max(1, total)
+        self.current = 0
+        self.label = ""
+
+    def update(self, current, label=""):
+        self.current = current
+        self.label = label
+        self._draw()
+
+    def _draw(self):
+        _, max_x = self.screen.getmaxyx()
+        bar_width = max(10, max_x - 4)
+        filled = int(bar_width * self.current / self.total)
+        bar = "#" * filled + "-" * (bar_width - filled)
+        pct = int(100 * self.current / self.total)
+
+        self.screen.clear()
+        try:
+            self.screen.addstr(0, 0, self.title[:max_x - 1])
+            self.screen.addstr(2, 0, f"[{bar}]"[:max_x - 1])
+            self.screen.addstr(3, 0, f"{pct}% ({self.current}/{self.total})"[:max_x - 1])
+            if self.label:
+                self.screen.addstr(5, 0, self.label[:max_x - 1])
+        except curses.error:
+            pass
+        self.screen.refresh()
+
 def xrb_make_vless_url(xray_inbound, xray_client, client_index):
     port = xray_inbound["port"]
     sni = xray_inbound["streamSettings"]["realitySettings"]["serverNames"][0]
@@ -490,14 +521,17 @@ def xrb_dump_urls(screen, xray_inbound):
     menu = UU_InputMenu(screen, "Enter file path to dump URLs", f"{xray_inbound['tag']}_urldump.csv")
     path = menu.get()
 
+    clients = xray_inbound["settings"]["clients"]
+    progress = UU_ProgressBar(screen, "Dumping URLs...", len(clients))
     with open(path, "w") as url_file:
         url_file.write("client_index,email,url\n")
-        for i, client in enumerate(xray_inbound["settings"]["clients"]):
+        for i, client in enumerate(clients):
+            progress.update(i, client["email"])
             url = xrb_make_client_url(xray_inbound, client, i)
             url_file.write(f"{i},{client['email']},{url}\n")
-    
-    msgbox = UU_MessageBox(screen, f"URLs dumped to {path}")
-    msgbox.show()
+    progress.update(len(clients))
+
+    UU_MessageBox(screen, f"URLs dumped to {path}").show()
 
 
 def xrb_dump_outbounds(screen, xray_inbound):
@@ -513,15 +547,20 @@ def xrb_dump_outbounds(screen, xray_inbound):
 
     path = UU_InputMenu(screen, "Enter file path to dump outbounds", default_path).get()
 
+    progress = UU_ProgressBar(screen, "Dumping outbounds...", len(clients))
     with open(path, "w") as out_file:
         if len(clients) == 1:
+            progress.update(0, clients[0]["email"])
             outbound = xrb_make_client_outbound(xray_inbound, clients[0], 0)
             out_file.write(json.dumps(outbound, ensure_ascii=False))
+            progress.update(1)
         else:
             for i, client in enumerate(clients):
+                progress.update(i, client["email"])
                 outbound = xrb_make_client_outbound(xray_inbound, client, i)
                 if outbound:
                     out_file.write(json.dumps(outbound, ensure_ascii=False) + "\n")
+            progress.update(len(clients))
 
     UU_MessageBox(screen, f"Outbounds dumped to {path}").show()
 
@@ -532,12 +571,18 @@ def xrb_dump_all_outbounds(screen, xray_config):
 
     path = UU_InputMenu(screen, "Enter file path to dump all outbounds", "xrboot_outbounds.json.list").get()
 
+    total = sum(len(ib["settings"]["clients"]) for ib in xray_config["inbounds"])
+    progress = UU_ProgressBar(screen, "Dumping all outbounds...", total)
+    done = 0
     with open(path, "w") as out_file:
         for xray_inbound in xray_config["inbounds"]:
             for i, client in enumerate(xray_inbound["settings"]["clients"]):
+                progress.update(done, client["email"])
                 outbound = xrb_make_client_outbound(xray_inbound, client, i)
                 if outbound:
                     out_file.write(json.dumps(outbound, ensure_ascii=False) + "\n")
+                done += 1
+    progress.update(total)
 
     UU_MessageBox(screen, f"All outbounds dumped to {path}").show()
 
@@ -861,6 +906,9 @@ def xrb_auto_setup(screen, xray_config):
 
     add_random_ports = UU_YesNoBox(screen, "Add duplicate inbounds on random ports?", default_yes=False).get()
 
+    ports_per_sni = 2 if add_random_ports else 1
+    total = len(vless_sni_predefs) * ports_per_sni
+    progress = UU_ProgressBar(screen, "Running auto-setup...", total)
     created = 0
 
     for sni in vless_sni_predefs:
@@ -870,6 +918,7 @@ def xrb_auto_setup(screen, xray_config):
         for port in ports:
             sni_slug = sni.replace(".", "_")
             tag = f"auto_{sni_slug}_{port}"
+            progress.update(created, tag)
 
             private_key = re.search(r"PrivateKey:\s*(.+)", subprocess.check_output(["xray", "x25519"], text=True)).group(1).rstrip().strip()
             short_id = subprocess.check_output(["openssl", "rand", "-hex", "8"], text=True).rstrip()
@@ -913,6 +962,7 @@ def xrb_auto_setup(screen, xray_config):
             inbound["streamSettings"]["realitySettings"] = reality
             xray_config["inbounds"].append(inbound)
             created += 1
+            progress.update(created)
 
     UU_MessageBox(screen, f"Auto-setup complete: {created} inbounds created").show()
     return xray_config
@@ -943,15 +993,20 @@ def xrb_dump_all_urls(screen, xray_config):
     menu = UU_InputMenu(screen, "Enter file path to dump all URLs", "xrboot_urldump.csv")
     path = menu.get()
 
+    total = sum(len(ib["settings"]["clients"]) for ib in xray_config["inbounds"])
+    progress = UU_ProgressBar(screen, "Dumping all URLs...", total)
+    done = 0
     with open(path, "w") as url_file:
         url_file.write("inbound_index,inbound_tag,client_index,email,url\n")
         for j, xray_inbound in enumerate(xray_config["inbounds"]):
             for i, client in enumerate(xray_inbound["settings"]["clients"]):
+                progress.update(done, client["email"])
                 url = xrb_make_client_url(xray_inbound, client, i)
                 url_file.write(f"{j},{xray_inbound['tag']},{i},{client['email']},{url}\n")
+                done += 1
+    progress.update(total)
 
-    msgbox = UU_MessageBox(screen, f"All URLs dumped to {path}")
-    msgbox.show()
+    UU_MessageBox(screen, f"All URLs dumped to {path}").show()
 
 def xrb_manage_inbounds(screen, xray_config):
     while True:
