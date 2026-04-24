@@ -42,7 +42,8 @@ IPGETTER_PROTOS = ["http", "https"]
 IPGETTER_HOSTS = ["checkip.amazonaws.com", "eth0.me", "ifconfig.me", "ipecho.net/plain", "icanhazip.com", "api.ipify.org", "ipinfo.io/ip"]
 SNIGETTER_URLS = [
     "https://raw.githubusercontent.com/untodesu/xray-tools/refs/heads/main/sni.txt",
-    "https://raw.githubusercontent.com/YukiKras/vless-wizard/refs/heads/main/sni.txt"]
+    "https://files.catbox.moe/0bg4ej.txt",
+    "https://pastebin.com/raw/bmJDQJuP"]
 SERVER_ADDRESS = ""
 
 for protocol in IPGETTER_PROTOS:
