@@ -129,7 +129,8 @@ class UU_ChoiceMenu:
         while True:
             max_y, max_x = self.screen.getmaxyx()
             header_rows = 4
-            visible_rows = max_y - header_rows - 1
+            # reserve bottom row - curses errors on writing to bottom-right corner
+            visible_rows = max(1, max_y - header_rows - 2)
 
             # keep selection visible
             if selection - scroll_offset >= visible_rows:
@@ -138,18 +139,24 @@ class UU_ChoiceMenu:
                 scroll_offset = selection
 
             self.screen.clear()
-            self.screen.addstr(0, 0, self.prompt)
+            try:
+                self.screen.addstr(0, 0, self.prompt[:max_x - 1])
+            except curses.error:
+                pass
 
             for row, i in enumerate(range(scroll_offset, min(scroll_offset + visible_rows, len(self.choices)))):
                 choice = self.choices[i]
                 y = header_rows + row
                 if choice is None:
                     continue
-                if i == selection:
-                    self.screen.addstr(y, 0, ">>")
-                    self.screen.addstr(y, 3, str(choice)[:max_x - 5], curses.A_REVERSE)
-                else:
-                    self.screen.addstr(y, 3, str(choice)[:max_x - 5])
+                try:
+                    if i == selection:
+                        self.screen.addstr(y, 0, ">>")
+                        self.screen.addstr(y, 3, str(choice)[:max_x - 5], curses.A_REVERSE)
+                    else:
+                        self.screen.addstr(y, 3, str(choice)[:max_x - 5])
+                except curses.error:
+                    pass
 
             # scrollbar
             if len(self.choices) > visible_rows:
@@ -158,10 +165,13 @@ class UU_ChoiceMenu:
                 thumb_pos = (scroll_offset * (visible_rows - thumb_size)) // max(1, len(self.choices) - visible_rows)
                 for row in range(visible_rows):
                     y = header_rows + row
-                    if thumb_pos <= row < thumb_pos + thumb_size:
-                        self.screen.addstr(y, sb_x, "#", curses.A_REVERSE)
-                    else:
-                        self.screen.addstr(y, sb_x, "|")
+                    try:
+                        if thumb_pos <= row < thumb_pos + thumb_size:
+                            self.screen.addstr(y, sb_x, "#", curses.A_REVERSE)
+                        else:
+                            self.screen.addstr(y, sb_x, "|")
+                    except curses.error:
+                        pass
 
             self.screen.refresh()
 
