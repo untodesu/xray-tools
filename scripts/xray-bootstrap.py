@@ -99,7 +99,7 @@ class UU_ChoiceMenu:
         self.screen = screen
         self.prompt = prompt
         self.choices = []
-        self.default_index = 0
+        self.default_index = -1
 
     def add_choice(self, choice, is_default=False):
         self.choices.append(choice)
@@ -113,6 +113,8 @@ class UU_ChoiceMenu:
         return len(self.choices)
 
     def get(self):
+        if self.default_index < 0:
+            self.default_index = next((i for i, c in enumerate(self.choices) if c is not None), 0)
         while self.default_index < len(self.choices) and self.choices[self.default_index] is None:
             self.default_index += 1
         if self.default_index >= len(self.choices):
