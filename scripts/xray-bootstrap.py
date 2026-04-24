@@ -121,21 +121,47 @@ class UU_ChoiceMenu:
             raise ValueError("No valid choices provided")
 
         selection = self.default_index
+        scroll_offset = 0
 
         curses.curs_set(0) # hide cursor
         curses.echo(False)
 
         while True:
+            max_y, max_x = self.screen.getmaxyx()
+            header_rows = 4
+            visible_rows = max_y - header_rows - 1
+
+            # keep selection visible
+            if selection - scroll_offset >= visible_rows:
+                scroll_offset = selection - visible_rows + 1
+            elif selection < scroll_offset:
+                scroll_offset = selection
+
             self.screen.clear()
             self.screen.addstr(0, 0, self.prompt)
 
-            for i, choice in enumerate(self.choices):
-                if self.choices[i]:
-                    if i == selection:
-                        self.screen.addstr(i + 4, 0, ">>")
-                        self.screen.addstr(i + 4, 3, str(choice), curses.A_REVERSE)
+            for row, i in enumerate(range(scroll_offset, min(scroll_offset + visible_rows, len(self.choices)))):
+                choice = self.choices[i]
+                y = header_rows + row
+                if choice is None:
+                    continue
+                if i == selection:
+                    self.screen.addstr(y, 0, ">>")
+                    self.screen.addstr(y, 3, str(choice)[:max_x - 5], curses.A_REVERSE)
+                else:
+                    self.screen.addstr(y, 3, str(choice)[:max_x - 5])
+
+            # scrollbar
+            if len(self.choices) > visible_rows:
+                sb_x = max_x - 1
+                thumb_size = max(1, visible_rows * visible_rows // len(self.choices))
+                thumb_pos = (scroll_offset * (visible_rows - thumb_size)) // max(1, len(self.choices) - visible_rows)
+                for row in range(visible_rows):
+                    y = header_rows + row
+                    if thumb_pos <= row < thumb_pos + thumb_size:
+                        self.screen.addstr(y, sb_x, "#", curses.A_REVERSE)
                     else:
-                        self.screen.addstr(i + 4, 3, str(choice))
+                        self.screen.addstr(y, sb_x, "|")
 
             self.screen.refresh()
 
