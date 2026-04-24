@@ -906,11 +906,8 @@ def xrb_auto_setup(screen, xray_config):
 
     ports_per_sni = 2 if add_random_ports else 1
 
-    vless_sni_predefs_r = random.sample(vless_sni_predefs, k=round(0.3 * len(vless_sni_predefs)))
-
-    if len(vless_sni_predefs_r) == 0:
-        vless_sni_predefs_r = vless_sni_predefs
-
+    vless_sni_predefs_r = vless_sni_predefs
+    
     total = len(vless_sni_predefs_r) * ports_per_sni
     progress = UU_ProgressBar(screen, "Running auto-setup...", total)
     created = 0
