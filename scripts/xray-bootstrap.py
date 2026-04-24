@@ -1012,6 +1012,9 @@ def xrb_auto_setup(screen, xray_config):
 
     vless_sni_predefs_r = random.sample(vless_sni_predefs, k=round(0.3 * len(vless_sni_predefs)))
 
+    if len(vless_sni_predefs_r) == 0:
+        vless_sni_predefs_r = vless_sni_predefs
+
     for sni in vless_sni_predefs_r:
         ports = [443]
         if add_random_ports:
