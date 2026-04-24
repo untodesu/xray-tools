@@ -187,6 +187,16 @@ class UU_ChoiceMenu:
                     selection += 1
                     if self.choices[selection]:
                         break
+            elif key == curses.KEY_PPAGE:
+                target = max(0, selection - visible_rows)
+                while target > 0 and not self.choices[target]:
+                    target -= 1
+                selection = target
+            elif key == curses.KEY_NPAGE:
+                target = min(len(self.choices) - 1, selection + visible_rows)
+                while target < len(self.choices) - 1 and not self.choices[target]:
+                    target += 1
+                selection = target
             elif key == curses.KEY_ENTER or key == 10 or key == 13:
                 break
 
