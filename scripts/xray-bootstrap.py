@@ -813,13 +813,13 @@ def xrb_auto_setup(screen, xray_config):
     if preset == 1: # VLESS-XHTTP
         xhttp_path = UU_InputMenu(screen, "Enter xhttp path", "/api/v1/data").get()
 
-    add_random_duplicates = UU_YesNoBox(screen, "Add duplicate inbounds on extra random ports?", default_yes=False).get()
+    add_random_ports = UU_YesNoBox(screen, "Add duplicate inbounds on random ports?", default_yes=False).get()
 
     created = 0
 
     for sni in vless_sni_predefs:
-        ports = [443, random.randrange(1024, 5120)]
-        if add_random_duplicates:
+        ports = [443]
+        if add_random_ports:
             ports.append(random.randrange(1024, 5120))
         for port in ports:
             sni_slug = sni.replace(".", "_")
