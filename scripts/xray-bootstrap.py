@@ -21,7 +21,7 @@ REQUIRED_BINARIES = [
 
 MIN_XRAY_VERSION = "25.12.2"
 
-VLESS_SNI_PREDEFS = [
+vless_sni_predefs = [
     "www.microsoft.com",
     "download.microsoft.com",
     "packages.microsoft.com",
@@ -40,6 +40,9 @@ PORT_PREDEFS = [
 
 IPGETTER_PROTOS = ["http", "https"]
 IPGETTER_HOSTS = ["checkip.amazonaws.com", "eth0.me", "ifconfig.me", "ipecho.net/plain", "icanhazip.com", "api.ipify.org", "ipinfo.io/ip"]
+SNIGETTER_URLS = [
+    "https://raw.githubusercontent.com/untodesu/xray-tools/refs/heads/main/sni.txt",
+    "https://raw.githubusercontent.com/YukiKras/vless-wizard/refs/heads/main/sni.txt"]
 SERVER_ADDRESS = ""
 
 for protocol in IPGETTER_PROTOS:
@@ -538,10 +541,10 @@ def xrb_edit_vless_sni(screen, xray_inbound):
 
     sni_menu = UU_ChoiceMenu(screen, "Select SNI")
 
-    for i, sni in enumerate(VLESS_SNI_PREDEFS):
+    for i, sni in enumerate(vless_sni_predefs):
         sni_menu.add_choice(sni, is_default=(sni == current_sni))
     sni_menu.add_separator()
-    sni_menu.add_choice("Custom", is_default=(current_sni not in VLESS_SNI_PREDEFS))
+    sni_menu.add_choice("Custom", is_default=(current_sni not in vless_sni_predefs))
 
     snii = sni_menu.get()
 
@@ -660,7 +663,7 @@ def xrb_create_inbound_vless_raw(screen, xray_config):
 
     sni_menu = UU_ChoiceMenu(screen, "Select SNI")
 
-    for i, sni in enumerate(VLESS_SNI_PREDEFS):
+    for i, sni in enumerate(vless_sni_predefs):
         sni_menu.add_choice(sni, is_default=(i == 0))
     sni_menu.add_separator()
     sni_menu.add_choice("Custom")
@@ -738,7 +741,7 @@ def xrb_create_inbound_vless_xhttp(screen, xray_config):
 
     sni_menu = UU_ChoiceMenu(screen, "Select SNI")
 
-    for i, sni in enumerate(VLESS_SNI_PREDEFS):
+    for i, sni in enumerate(vless_sni_predefs):
         sni_menu.add_choice(sni, is_default=(i == 0))
     sni_menu.add_separator()
     sni_menu.add_choice("Custom")
@@ -810,7 +813,7 @@ def xrb_auto_setup(screen, xray_config):
 
     created = 0
 
-    for sni in VLESS_SNI_PREDEFS:
+    for sni in vless_sni_predefs:
         for port in [443, random.randrange(1024, 5120)]:
             sni_slug = sni.replace(".", "_")
             tag = f"auto_{sni_slug}_{port}"
@@ -1006,6 +1009,41 @@ def make_version_integer(version_string):
 
     return 10000 * major + 100 * minor + patch
 
+def xrb_fetch_sni_list(screen):
+    global vless_sni_predefs
+
+    curses.curs_set(0)
+    curses.echo(False)
+
+    for url in SNIGETTER_URLS:
+        screen.clear()
+        screen.addstr(0, 0, "Fetching SNI list...")
+        screen.addstr(2, 0, f"Trying: {url}")
+        screen.refresh()
+
+        try:
+            response = urllib.request.urlopen(url, timeout=10)
+            domains = [
+                line.strip()
+                for line in response.read().decode("utf-8").splitlines()
+                if line.strip()
+            ]
+            if domains:
+                vless_sni_predefs = domains
+                screen.addstr(4, 0, f"OK! Loaded {len(domains)} SNI entries.")
+                screen.refresh()
+                curses.napms(800)
+                return
+        except:
+            screen.addstr(4, 0, "FAILED!")
+            screen.refresh()
+            curses.napms(600)
+
+    screen.clear()
+    screen.addstr(0, 0, "Could not fetch SNI list, using built-in defaults.")
+    screen.refresh()
+    curses.napms(1200)
+
 def xrb_main(screen):
     if os.name != "nt" and os.geteuid() != 0:
         UU_MessageBox(screen, "This script must be run as root").show()
@@ -1027,6 +1065,8 @@ def xrb_main(screen):
     if xray_version < required_version:
         UU_MessageBox(screen, f"Xray version {xray_version} is too old, please update to at least {MIN_XRAY_VERSION}").show()
         return 1
+
+    xrb_fetch_sni_list(screen)
 
     xray_config_name = UU_InputMenu(screen, "XRay configuration name", "xrboot").get()
     xray_config_path = UU_InputMenu(screen, "XRay configuration file", f"/usr/local/etc/xray/{xray_config_name}.json").get()
